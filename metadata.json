@@ -1,0 +1,6 @@
+{
+  "name": "StudySphere AI",
+  "description": "An AI-powered, highly personalized learning platform for board and class preparation, offering performance insights, personalized study tracks, and adaptive learning tools.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

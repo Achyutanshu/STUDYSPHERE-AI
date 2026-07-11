@@ -84,21 +84,37 @@ app.post('/api/quiz/generate', async (req, res) => {
 app.post('/api/quiz/evaluate', async (req, res) => {
   try {
     checkApiKey();
-    const { questionText, correctAnswer, studentAnswer, marksAllocated } = req.body;
+    const { questionText, correctAnswer, studentAnswer, marksAllocated, subject } = req.body;
+    const isChemistry = subject === 'chemistry';
+    const isCompApp = subject === 'computer-applications';
+    
+    let subjectName = 'Physics';
+    let accuracyFocus = 'physics accuracy';
+    let missingPointsDesc = 'Key physics concepts, definitions, or parameters the student missed';
 
-    const prompt = `Evaluate this student's answer for an ICSE Class 10 Physics question.
+    if (isChemistry) {
+      subjectName = 'Chemistry';
+      accuracyFocus = 'chemistry and chemical equation accuracy';
+      missingPointsDesc = 'Key chemistry concepts, balancing equations, definitions, or parameters the student missed';
+    } else if (isCompApp) {
+      subjectName = 'Computer Applications (Java)';
+      accuracyFocus = 'Java syntax, Class and Object design, OOP principles, Variable Description Tables, and algorithmic accuracy';
+      missingPointsDesc = 'Key Java syntax, OOP concepts (encapsulation, access specifiers), Variable Description Tables, logic flow, or class structures missed';
+    }
+
+    const prompt = `Evaluate this student's answer for an ICSE Class 10 ${subjectName} question.
     Question: "${questionText}"
     Reference Ideal Answer: "${correctAnswer}"
     Student's Answer: "${studentAnswer}"
     Total Marks Available: ${marksAllocated || 3}
     
-    Strictly evaluate at an ICSE Board level, highlighting keywords they included or missed, and supply an improved version.`;
+    Strictly evaluate at an ICSE Board level, highlighting keywords or code constructs they included or missed, and supply an improved version.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
-        systemInstruction: 'You are an objective ICSE Board evaluator. Grade the student constructively but strictly, focusing on physics accuracy and keyword matching.',
+        systemInstruction: `You are an objective ICSE Board evaluator. Grade the student constructively but strictly, focusing on ${accuracyFocus} and keyword matching.`,
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -108,7 +124,7 @@ app.post('/api/quiz/evaluate', async (req, res) => {
             missingPoints: { 
               type: Type.ARRAY, 
               items: { type: Type.STRING },
-              description: 'Key physics concepts, definitions, or parameters the student missed'
+              description: missingPointsDesc
             },
             improvedAnswer: { type: Type.STRING, description: 'A polished, high-scoring model answer for their reference' },
             explanation: { type: Type.STRING, description: 'Constructive feedback explaining the grade and correct concepts simply' }
@@ -123,6 +139,49 @@ app.post('/api/quiz/evaluate', async (req, res) => {
   } catch (error: any) {
     console.error('Evaluation Error:', error);
     res.status(500).json({ success: false, error: error.message || 'Failed to evaluate answer.' });
+  }
+});
+
+// API Route 2.5: AI Java Runtime Simulator
+app.post('/api/java/run', async (req, res) => {
+  try {
+    checkApiKey();
+    const { code } = req.body;
+
+    const prompt = `Act as a standard Java JDK 17 compiler and runtime console. 
+    Analyze and execute the following Java code:
+    \`\`\`java
+    ${code}
+    \`\`\`
+    
+    If there are syntax errors, compile-time errors, or run-time exceptions, return compilationStatus as "error" and describe the exact Java compiler/runtime error message in details.
+    If the code compiles successfully, return compilationStatus as "success" and provide the exact standard console output (stdout) that running the main method (or executing the logic) would produce.
+    
+    Make sure the output matches standard Java execution exactly.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+      config: {
+        systemInstruction: 'You are a precise, sandboxed Java Compiler and Runtime engine simulator. You output accurate compiler logs, warnings, stack traces, and standard output.',
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            compilationStatus: { type: Type.STRING, description: 'success or error' },
+            output: { type: Type.STRING, description: 'The exact stdout produced if compilation is successful.' },
+            errorDetails: { type: Type.STRING, description: 'The exact compiler errors or exception details if compilation/runtime failed.' }
+          },
+          required: ['compilationStatus', 'output', 'errorDetails']
+        }
+      }
+    });
+
+    const runResult = JSON.parse(response.text || '{}');
+    res.json({ success: true, runResult });
+  } catch (error: any) {
+    console.error('Java Run Error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to compile and run Java code.' });
   }
 });
 
